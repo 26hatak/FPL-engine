@@ -20,7 +20,7 @@ RAW = Path("data/raw")
 
 session = requests.Session()
 # Identify yourself politely; put your own contact here.
-session.headers.update({"User-Agent": "fpl-engine student project (you@example.com)"})
+session.headers.update({"User-Agent": "fpl-engine student project (26hatak@gmail.com)"})
 
 
 def get(path: str) -> dict:
