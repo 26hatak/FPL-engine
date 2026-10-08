@@ -85,7 +85,10 @@ def combine_seasons(frames: list[pd.DataFrame]) -> pd.DataFrame:
 
     Hint: DataFrame.reindex(columns=...) adds missing columns as NaN.
     """
-    raise NotImplementedError("combine_seasons: see docstring")
+
+    fixed = [f.reindex(columns=COLUMNS) for f in frames]
+    return (pd.concat(fixed).sort_values(["season", "kickoff_time", "player_code"]).reset_index(drop=True))
+
 
 
 def load_current_season() -> pd.DataFrame:
