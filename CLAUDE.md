@@ -25,16 +25,10 @@ Phase 0 (data), target finish Oct 25, 2026:
 
 - [x] `src/snapshot.py` saves the FPL API daily; GitHub Actions job `.github/workflows/snapshot.yml` runs it every day at 07:17 UTC and commits the data (confirmed working).
 - [x] Backfilled the 2026/27 season so far (`python src/snapshot.py --backfill`).
-- [ ] Explore the data in `notebooks/01_explore.ipynb` and write `DATA.md` (in progress).
-- [ ] Download past seasons (2024-25, 2025-26) from https://github.com/vaastav/Fantasy-Premier-League
-- [ ] Build `player_gw` table + a test that fails on leakage.
-
-Open questions for `DATA.md`:
-1. Which file gives player name, position, team? (gameweek files only have IDs)
-2. What units is price stored in? (`now_cost` is tenths of £m)
-3. Double gameweeks: one row or two per player?
-4. Which fields are outcomes vs. pre-deadline features?
-5. Does `element_summary` history include xG/xA per match?
+- [x] Explore the data in `notebooks/01_explore.ipynb` and write `DATA.md` (answers to the open questions are there).
+- [x] Download past seasons (2024-25, 2025-26) from vaastav: `python src/download_past_seasons.py` (pinned commit).
+- [ ] Build `player_gw`: skeleton + tests written; I'm filling in the YOUR TURN functions in `src/build_player_match.py` and `src/build_player_gw.py` until `pytest -q` passes (incl. the leakage test).
+- [ ] Snapshot features (status, chance_of_playing) via as-of join: later, data only from 2026-10-07.
 
 ## Repo layout
 
@@ -42,14 +36,20 @@ Open questions for `DATA.md`:
 fpl-engine/
 ├── .github/workflows/snapshot.yml   daily data job
 ├── src/snapshot.py                  API snapshot + backfill script
+├── src/download_past_seasons.py     past seasons from vaastav (run once)
+├── src/build_player_match.py        raw -> processed/player_match + gameweeks
+├── src/build_player_gw.py           player_match -> processed/player_gw (features + targets)
+├── tests/                           pytest: synthetic tests (incl. leakage) + real-data checks
 ├── notebooks/                       exploration only
-├── data/raw/                        raw API data, gzipped JSON (never edit)
+├── data/raw/                        raw data, gzipped (never edit)
 │   ├── daily/<UTC timestamp>/       bootstrap-static + fixtures, one folder per day
 │   ├── gameweeks/gwNN_live.json.gz  every player's stats per finished gameweek
-│   └── element_summary/<date>/      per-player season history (incl. price, ownership per GW)
-├── data/processed/                  Parquet tables built from raw (to do)
-├── DATA.md                          field notes (to do)
-└── .gitignore                       .venv/, __pycache__/, .DS_Store
+│   ├── element_summary/<date>/      per-player season history (incl. price, ownership per GW)
+│   └── vaastav/<season>/            past seasons: merged_gw, players_raw, teams, fixtures
+├── data/processed/                  Parquet tables rebuilt from raw (git-ignored)
+├── DATA.md                          field notes: keys, units, grain, leakage, gaps
+├── requirements.txt                 packages for .venv
+└── .gitignore                       .venv/, __pycache__/, .DS_Store, data/processed/
 ```
 
 ## Conventions
@@ -60,6 +60,8 @@ fpl-engine/
   `ROOT = Path.cwd().parent; RAW = ROOT / "data" / "raw"`.
 - **Always `git pull` before working**: the snapshot bot commits every day.
 - **Storage:** Parquet + DuckDB for processed tables.
+- **Keys:** join seasons on `player_code` / `team_code` (FPL's stable `code`), never on `element` or team `id` (renumbered every season).
+- **Scripts and tests run from the project root:** `python src/build_player_match.py`, `pytest -q`.
 - **Tools planned:** pandas, DuckDB, scikit-learn / LightGBM, statsmodels, PuLP (HiGHS/CBC solver), Streamlit.
 
 ## FPL API endpoints (base: https://fantasy.premierleague.com/api/)
