@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Rebuilt from data/raw by src/build_*.py
+data/processed/
+.DS_Store
