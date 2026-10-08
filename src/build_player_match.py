@@ -12,6 +12,7 @@ import gzip
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 RAW = Path("data/raw")
@@ -48,6 +49,7 @@ def to_numeric(df: pd.DataFrame) -> pd.DataFrame:
 
 # ---------------------------------------------------------------- YOUR TURN 1
 def add_own_team(matches: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
+
     """Add a 'team' column: the player's club IN THAT MATCH (season team id).
 
     Why: element_summary history only has 'opponent_team' and 'was_home'.
@@ -61,7 +63,13 @@ def add_own_team(matches: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
     Hint: merge on fixture id, then pick team_h or team_a with was_home
     (np.where or Series.where). Check the row count didn't change.
     """
-    raise NotImplementedError("add_own_team: see docstring")
+
+    out = matches.copy()
+    merged = out.merge(fixtures[['id', 'team_h', 'team_a']], left_on='fixture', right_on='id', how='left')
+    out["team"] = np.where(merged["was_home"], merged["team_h"],merged["team_a"])
+        
+    return out
+    
 
 
 # ---------------------------------------------------------------- YOUR TURN 2
