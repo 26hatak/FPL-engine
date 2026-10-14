@@ -49,6 +49,7 @@ def aggregate_targets(player_match: pd.DataFrame) -> pd.DataFrame:
       - value: price at that GW (first match's value; same for both in a double)
       - n_home: home matches that GW (0, 1 or 2): a double can be one of each
       - team_code, position: the player's club and position that GW
+      - fpl_xp: FPL's own expected points (per GW already, so taken once)
 
     Opponents stay out on purpose: a double has two, and one GW row can't hold
     both without averaging them away. Phase 1 predicts per fixture instead
@@ -64,6 +65,7 @@ def aggregate_targets(player_match: pd.DataFrame) -> pd.DataFrame:
     targets["value"] = by_gw["value"].first()
     targets["team_code"] = by_gw["team_code"].first()
     targets["position"] = by_gw["position"].first()
+    targets["fpl_xp"] = by_gw["fpl_xp"].first()
     return targets.reset_index()
 
 

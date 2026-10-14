@@ -94,3 +94,48 @@ def test_snapshots_are_from_before_each_deadline():
     used = gw[gw["snap_time"].notna()]
     assert len(used) > 0
     assert (used["snap_time"] < used["deadline_time"]).all()
+
+
+needs_fixtures = pytest.mark.skipif(
+    not (PROCESSED / "fixtures.parquet").exists(),
+    reason="run python src/build_all.py first")
+
+
+@needs_fixtures
+def test_fixtures_complete_and_mapped():
+    """380 matches a season, each once, every team mapped to its stable code,
+    and the current season still holds its future (unplayed) matches."""
+    fx = pd.read_parquet(PROCESSED / "fixtures.parquet")
+    assert (fx.groupby("season").size() == 380).all()
+    assert not fx.duplicated(["season", "fixture"]).any()
+    assert fx[["team_h_code", "team_a_code"]].notna().all().all()
+    current = fx[fx["season"] == CURRENT_SEASON]
+    assert (~current["finished"]).any(), "no future fixtures left to predict"
+    assert current.loc[current["finished"], "team_h_score"].notna().all()
+
+
+@needs_fixtures
+def test_every_played_match_is_a_known_fixture():
+    pm = pd.read_parquet(PROCESSED / "player_match.parquet")
+    fx = pd.read_parquet(PROCESSED / "fixtures.parquet")
+    known = set(zip(fx["season"], fx["fixture"]))
+    assert set(zip(pm["season"], pm["fixture"])) <= known
+
+
+@needs_fixtures
+def test_players_lookup_covers_player_gw():
+    players = pd.read_parquet(PROCESSED / "players.parquet")
+    gw = pd.read_parquet(PROCESSED / "player_gw.parquet")
+    assert not players.duplicated(["season", "player_code"]).any()
+    assert set(zip(gw["season"], gw["player_code"])) <= set(zip(players["season"], players["player_code"]))
+
+
+@needs_player_gw
+def test_fpl_xp_unrecorded_gameweeks_are_nan_not_zero():
+    """vaastav wrote xP = 0 for every player in gameweeks it didn't capture.
+    Such a gameweek must be NaN, or a baseline evaluation reads it as 'FPL
+    predicted 0 points for everyone'."""
+    gw = pd.read_parquet(PROCESSED / "player_gw.parquet")
+    past = gw[gw["season"] != CURRENT_SEASON]
+    all_zero = past.groupby(["season", "gw"])["fpl_xp"].apply(lambda x: x.notna().any() and (x.fillna(0) == 0).all())
+    assert not all_zero.any(), all_zero[all_zero].index.tolist()

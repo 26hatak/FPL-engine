@@ -28,7 +28,11 @@ OUTCOMES = ["minutes", "starts", "goals_scored", "assists", "clean_sheets",
             "total_points"]
 # Known before the deadline of that gameweek (price, ownership, transfers).
 PRE_DEADLINE = ["value", "selected", "transfers_in", "transfers_out"]
-COLUMNS = KEYS + OUTCOMES + PRE_DEADLINE
+# FPL's own expected points for the gameweek (vaastav's xP; past seasons only,
+# same value on both rows of a double). A BASELINE to beat, not a feature:
+# when vaastav captured it relative to the deadline is not documented.
+BASELINES = ["fpl_xp"]
+COLUMNS = KEYS + OUTCOMES + PRE_DEADLINE + BASELINES
 
 
 def load_json(path: Path):
@@ -40,7 +44,7 @@ def to_numeric(df: pd.DataFrame) -> pd.DataFrame:
     """The API stores xG, xA and ICT as strings like "0.45". Cast every
     outcome and pre-deadline column to a number."""
     df = df.copy()
-    for col in OUTCOMES + PRE_DEADLINE:
+    for col in OUTCOMES + PRE_DEADLINE + BASELINES:
         if col in df:
             df[col] = pd.to_numeric(df[col])
     df["kickoff_time"] = pd.to_datetime(df["kickoff_time"], utc=True)
@@ -129,6 +133,10 @@ def load_past_season(season: str) -> pd.DataFrame:
     matches = matches[matches["position"] != "AM"].copy()
     matches["season"] = season
     matches["gw"] = matches["GW"]
+    # vaastav skipped xP for some gameweeks and wrote 0 for every player
+    # (27 of 38 in 2025-26). All-zero gameweek = not recorded -> NaN, not 0.
+    recorded = matches.groupby("GW")["xP"].transform(lambda x: (x != 0).any())
+    matches["fpl_xp"] = matches["xP"].where(recorded)
     matches["player_code"] = matches["element"].map(players["code"])
     matches["team_code"] = matches["team"].map(teams.set_index("name")["code"])
     matches["opponent_code"] = matches["opponent_team"].map(teams.set_index("id")["code"])

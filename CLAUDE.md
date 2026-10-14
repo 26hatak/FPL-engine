@@ -31,6 +31,7 @@ Phase 0 (data), target finish Oct 25, 2026:
 - [x] Build `player_gw` (`src/build_player_match.py` → `src/build_player_gw.py`); synthetic tests incl. leakage pass.
 - [x] Fully automatic data: the daily job saves snapshots + finished GWs, re-downloads `element_summary` when a GW finishes, then runs `build_all.py` + pytest (a red run = GitHub email).
 - [x] Snapshot features: `players_daily` (every daily snapshot) joined onto `player_gw` as of each deadline (`snap_*` columns, from GW6 on).
+- [x] `fixtures` (all seasons, incl. future matches), `teams`, `players` lookups; `fpl_xp` baseline (NaN where vaastav didn't record it).
 - [ ] Phase 1 starts with a `player_fixture` table (one row per player per fixture, GW-frozen `f_*` + opponent, home, rest days); predict per fixture, sum to GW. See DATA.md "Double gameweeks".
 
 ## Repo layout
@@ -41,6 +42,7 @@ fpl-engine/
 ├── src/snapshot.py                  API snapshot + backfill script
 ├── src/download_past_seasons.py     past seasons from vaastav (run once)
 ├── src/build_player_match.py        raw -> processed/player_match + gameweeks
+├── src/build_fixtures.py            fixtures (played + future), teams, players lookups
 ├── src/build_snapshots.py           daily snapshots -> processed/players_daily
 ├── src/build_player_gw.py           all of the above -> processed/player_gw (targets, f_*, snap_*)
 ├── src/build_all.py                 rebuilds every processed table in order

@@ -12,6 +12,20 @@ What's in `data/raw/`, how the pieces fit together, and the traps. Every claim h
 | `data/raw/element_summary/<date>/<id>.json.gz` | FPL API, daily job (re-downloaded once a GW finishes) | `history`: one row per player per **match** | this season up to `<date>` |
 | `data/raw/vaastav/<season>/*.csv.gz` | [vaastav](https://github.com/vaastav/Fantasy-Premier-League), pinned commit `9779cdb` | `merged_gw`: one row per player per **match** | 2024-25, 2025-26 (all 38 GWs) |
 
+## Processed tables (`data/processed/`, rebuilt by `python src/build_all.py`)
+
+| Table | One row = | Use |
+| --- | --- | --- |
+| `player_gw` | player × gameweek | Main modelling table: targets, `f_*` form, `snap_*` snapshot state, team, position, `fpl_xp` |
+| `player_match` | player × match | Per-match stats; team totals (team strength), shares, per-fixture models |
+| `fixtures` | match, **played and future** | Opponent, home/away, kickoff, FPL difficulty, scores once played. Future rows are what predictions are made for |
+| `players` | player × season | Names (`web_name`), club and position: lookup by `player_code` |
+| `teams` | team × season | Season id → stable `team_code` → names: lookup |
+| `players_daily` | player × daily snapshot | Point-in-time flags, price, ownership, `ep_next` (joined into `player_gw`) |
+| `gameweeks` | season × gameweek | Deadlines (joined into `player_gw`) |
+
+Tables keep codes, not names; join `players` / `teams` when a person needs to read the result. `players.team_code` is the club at season end (past) or today (current): for the club in a given match use `player_match.team_code`.
+
 ## Keys
 
 - **Players:** `element` / `id` is renumbered every season. **`code` is stable across seasons**; use it (`player_code`) to join seasons. Every `element` in the data maps to a `code`.
@@ -71,7 +85,7 @@ The same row mixes both kinds, so the question is per **field**, not per file.
 - **Missing rows ≠ 0 minutes:** players who join mid-season have no rows before they arrive (667 players × 5 GWs = 3,335, but there are 3,216 rows).
 - **DefCon only from 2025-26:** `defensive_contribution` is NaN (not recorded) for 2024-25, never 0.
 - `history_past` in element_summary is season totals only. Per-GW past data comes from vaastav.
-- vaastav `xP` = FPL's own expected points for that GW. Keep it in mind as the past-season baseline for Phase 4.
+- **`fpl_xp`** (vaastav `xP`) = FPL's own expected points for the gameweek, past seasons only; the same value on both rows of a double, so `player_gw` takes it once. vaastav didn't capture it for 3 gameweeks of 2024-25 and 27 of 2025-26 and wrote 0 for everyone: those are NaN (tested). Correlation with actual points: 0.72 where recorded (0.51 with the fake zeros). Use it as a **baseline**, not a feature: its capture time relative to the deadline isn't documented. For 2026-27 the point-in-time equivalent is `snap_ep_next`.
 
 ## Rule changes across seasons
 
