@@ -31,12 +31,13 @@ def player_match():
         match("2025-26", 100, 4, 41, expected_goals=0.3, defensive_contribution=8),
         match("2025-26", 100, 5, 51, expected_goals=0.2, defensive_contribution=2),
         match("2025-26", 100, 6, 61, expected_goals=0.6, defensive_contribution=7),
-        # Player 200: blank in GW4 (no row), distinct minutes to check rolling means.
+        # Player 200: blank in GW4 (no row), distinct minutes to check rolling means,
+        # and a transfer to team 5 right after the blank (GW5 on).
         match("2025-26", 200, 1, 12, minutes=10),
-        match("2025-26", 200, 2, 22, minutes=20),
+        match("2025-26", 200, 2, 22, minutes=20, was_home=False),
         match("2025-26", 200, 3, 33, minutes=30),
-        match("2025-26", 200, 5, 52, minutes=50),
-        match("2025-26", 200, 6, 62, minutes=60),
+        match("2025-26", 200, 5, 52, minutes=50, team_code=5),
+        match("2025-26", 200, 6, 62, minutes=60, team_code=5),
         # Player 300: first appears in GW3.
         match("2025-26", 300, 3, 34),
         match("2025-26", 300, 4, 42),

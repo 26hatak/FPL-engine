@@ -11,12 +11,15 @@ permissions:
 jobs:
   snapshot:
     runs-on: ubuntu-latest
+    timeout-minutes: 60      # a history refresh takes ~12 min; stop anything stuck
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
+      - run: pip install -r requirements.txt
+      # Daily snapshot + newly finished gameweeks; re-downloads player
+      # histories automatically when a gameweek has finished since the last one.
       - run: python src/snapshot.py
       - name: Commit new data
         run: |
@@ -24,4 +27,9 @@ jobs:
           git config user.email "actions@users.noreply.github.com"
           git add data/raw
           git diff --cached --quiet || git commit -m "snapshot $(date -u +%F)"
+          git pull --rebase
           git push
+      # Health check: rebuild every table and run the tests. A failure here
+      # makes the run red and GitHub emails you; the data above is already saved.
+      - run: python src/build_all.py
+      - run: python -m pytest -q

@@ -56,6 +56,22 @@ def test_defcon_nan_preserved(player_gw):
     assert row(player_gw, "2025-26", 100, 3)["defensive_contribution"] == 8
 
 
+def test_home_count(player_gw):
+    assert row(player_gw, "2025-26", 100, 3)["n_home"] == 2     # double, both at home
+    assert row(player_gw, "2025-26", 200, 2)["n_home"] == 0     # away
+    assert row(player_gw, "2025-26", 200, 4)["n_home"] == 0     # blank: no match
+
+
+def test_blank_keeps_club_and_position_from_the_past(player_gw):
+    # Player 200 moves to team 5 after the GW4 blank. The blank must keep the
+    # old club (forward-fill); the new club there would leak a later transfer.
+    blank = row(player_gw, "2025-26", 200, 4)
+    assert blank["team_code"] == 1
+    assert blank["position"] == "MID"
+    assert row(player_gw, "2025-26", 200, 5)["team_code"] == 5
+    assert player_gw["team_code"].notna().all() and player_gw["position"].notna().all()
+
+
 def test_deadline_attached(player_gw):
     assert player_gw["deadline_time"].notna().all()
 
@@ -120,3 +136,30 @@ def test_no_leakage_perturbation(player_match, gameweeks, gw):
     future = ~past
     assert not np.allclose(before.loc[future, feats].fillna(-1),
                            after.loc[future, feats].fillna(-1))
+
+
+# --- snapshot (as-of) features ----------------------------------------------
+
+def test_snapshot_join_takes_latest_strictly_before_deadline():
+    from build_player_gw import add_snapshot_features
+    deadline = pd.Timestamp("2026-10-10 10:00", tz="UTC")
+    hour = pd.Timedelta(hours=1)
+    player_gw = pd.DataFrame({
+        "season": "2026-27", "player_code": [100, 100, 100, 200], "gw": [1, 2, 3, 1],
+        "deadline_time": [deadline, deadline + 168 * hour, deadline + 336 * hour, deadline]})
+    snaps = pd.DataFrame({
+        "season": "2026-27", "player_code": 100,
+        "snapshot_time": [deadline - 2 * hour, deadline,            # exactly AT the GW1 deadline
+                          deadline + 200 * hour],                   # after GW2's deadline
+        "status": "a", "chance_of_playing_next_round": float("nan"), "news": "",
+        "now_cost": [50, 51, 99], "selected_by_percent": 1.0, "ep_next": 2.0})
+    out = add_snapshot_features(player_gw, snaps)
+
+    assert out["snap_price"].tolist()[:3] == [50, 51, 99]   # GW1 skips the at-deadline snapshot
+    assert pd.isna(out["snap_price"].iloc[3])               # no snapshot for player 200
+    assert (out["snap_time"].dropna() < out.loc[out["snap_time"].notna(), "deadline_time"]).all()
+    assert out["gw"].tolist() == [1, 2, 3, 1]               # rows keep their order
+
+
+def test_build_without_snapshots_still_works(player_match, gameweeks):
+    assert not any(c.startswith("snap_") for c in build(player_match, gameweeks).columns)

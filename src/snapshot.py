@@ -1,10 +1,15 @@
 """Save raw FPL API snapshots.
 
-Daily run:      python src/snapshot.py
-First run only: python src/snapshot.py --backfill
+Daily run (the GitHub job): python src/snapshot.py
+Force a history refresh:    python src/snapshot.py --backfill
 
 Saves gzipped JSON under data/raw/. Never edit these files; everything
 downstream (features, models) is rebuilt from them.
+
+Every run saves the daily snapshot and any newly finished gameweek. Player
+histories (element_summary) are re-downloaded automatically once a gameweek
+has finished that the newest history folder doesn't cover yet: about once a
+week, ~12 minutes of requests.
 """
 import datetime as dt
 import gzip
@@ -63,9 +68,26 @@ def save_gameweek_stats(boot: dict) -> None:
         time.sleep(1)
 
 
+def histories_are_stale(boot: dict) -> bool:
+    """True when a finished (and FPL-checked) gameweek is missing from the newest
+    element_summary folder. Uses the same rule as save_gameweek_stats, so the
+    history and the gwNN_live files always cover the same gameweeks."""
+    finished = [e["id"] for e in boot["events"] if e["finished"] and e["data_checked"]]
+    folders = sorted((RAW / "element_summary").glob("*"))
+    if not finished:
+        return False
+    if not folders:
+        return True
+    rounds = [m["round"] for p in folders[-1].glob("*.json.gz")
+              for m in json.load(gzip.open(p, "rt"))["history"]]
+    return max(rounds, default=0) < max(finished)
+
+
 def backfill_player_histories(boot: dict) -> None:
-    """Run once. Each player's history this season, including price ('value') and
-    ownership ('selected') at every past gameweek. Takes ~10 minutes."""
+    """Each player's full history this season, including price ('value') and
+    ownership ('selected') at every past gameweek, into a folder named by
+    today's date. Files already there are skipped, so an interrupted run
+    resumes the same day. Takes ~12 minutes."""
     folder = RAW / "element_summary" / dt.date.today().isoformat()
     for p in boot["elements"]:
         out = folder / f"{p['id']}.json.gz"
@@ -78,6 +100,6 @@ def backfill_player_histories(boot: dict) -> None:
 if __name__ == "__main__":
     boot = daily_snapshot()
     save_gameweek_stats(boot)
-    if "--backfill" in sys.argv:
+    if "--backfill" in sys.argv or histories_are_stale(boot):
         backfill_player_histories(boot)
     print(f"Saved snapshot: {len(boot['elements'])} players, {len(boot['events'])} gameweeks")

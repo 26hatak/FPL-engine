@@ -18,6 +18,7 @@ I'm a student building this to learn skills I can talk about in internship inter
 - **Keep it simple.** Build the crude end-to-end version of all three stages first, then improve the weakest piece.
 - **Flag leakage risks** whenever we touch features, joins or evaluation.
 - I'm new to some tooling (git, terminals, virtual environments, GitHub Actions). Give exact commands and say what each one does.
+- **Record everything in the plan doc** (https://claude.ai/code/artifact/552b9df2-e6af-4f4f-b688-02f3eacee9cf): add a row to its Progress log (newest first) for each change, keep Open items current, and update the relevant phase section and diagrams when the design changes.
 
 ## Current status (update this as we go)
 
@@ -27,18 +28,22 @@ Phase 0 (data), target finish Oct 25, 2026:
 - [x] Backfilled the 2026/27 season so far (`python src/snapshot.py --backfill`).
 - [x] Explore the data in `notebooks/01_explore.ipynb` and write `DATA.md` (answers to the open questions are there).
 - [x] Download past seasons (2024-25, 2025-26) from vaastav: `python src/download_past_seasons.py` (pinned commit).
-- [ ] Build `player_gw`: skeleton + tests written; I'm filling in the YOUR TURN functions in `src/build_player_match.py` and `src/build_player_gw.py` until `pytest -q` passes (incl. the leakage test).
-- [ ] Snapshot features (status, chance_of_playing) via as-of join: later, data only from 2026-10-07.
+- [x] Build `player_gw` (`src/build_player_match.py` → `src/build_player_gw.py`); synthetic tests incl. leakage pass.
+- [x] Fully automatic data: the daily job saves snapshots + finished GWs, re-downloads `element_summary` when a GW finishes, then runs `build_all.py` + pytest (a red run = GitHub email).
+- [x] Snapshot features: `players_daily` (every daily snapshot) joined onto `player_gw` as of each deadline (`snap_*` columns, from GW6 on).
+- [ ] Phase 1 starts with a `player_fixture` table (one row per player per fixture, GW-frozen `f_*` + opponent, home, rest days); predict per fixture, sum to GW. See DATA.md "Double gameweeks".
 
 ## Repo layout
 
 ```
 fpl-engine/
-├── .github/workflows/snapshot.yml   daily data job
+├── .github/workflows/snapshot.yml   daily job: snapshot, history refresh after each GW, rebuild + tests
 ├── src/snapshot.py                  API snapshot + backfill script
 ├── src/download_past_seasons.py     past seasons from vaastav (run once)
 ├── src/build_player_match.py        raw -> processed/player_match + gameweeks
-├── src/build_player_gw.py           player_match -> processed/player_gw (features + targets)
+├── src/build_snapshots.py           daily snapshots -> processed/players_daily
+├── src/build_player_gw.py           all of the above -> processed/player_gw (targets, f_*, snap_*)
+├── src/build_all.py                 rebuilds every processed table in order
 ├── tests/                           pytest: synthetic tests (incl. leakage) + real-data checks
 ├── notebooks/                       exploration only
 ├── data/raw/                        raw data, gzipped (never edit)
@@ -61,7 +66,7 @@ fpl-engine/
 - **Always `git pull` before working**: the snapshot bot commits every day.
 - **Storage:** Parquet + DuckDB for processed tables.
 - **Keys:** join seasons on `player_code` / `team_code` (FPL's stable `code`), never on `element` or team `id` (renumbered every season).
-- **Scripts and tests run from the project root:** `python src/build_player_match.py`, `pytest -q`.
+- **Scripts and tests run from the project root:** `python src/build_all.py`, then `pytest -q`. After `git pull`, that one command brings every table up to date.
 - **Tools planned:** pandas, DuckDB, scikit-learn / LightGBM, statsmodels, PuLP (HiGHS/CBC solver), Streamlit.
 
 ## FPL API endpoints (base: https://fantasy.premierleague.com/api/)
