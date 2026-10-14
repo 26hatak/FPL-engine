@@ -66,7 +66,7 @@ fpl-engine/
 - **Always `git pull` before working**: the snapshot bot commits every day.
 - **Storage:** Parquet + DuckDB for processed tables.
 - **Keys:** join seasons on `player_code` / `team_code` (FPL's stable `code`), never on `element` or team `id` (renumbered every season).
-- **Scripts and tests run from the project root:** `python src/build_all.py`, then `pytest -q`. After `git pull`, that one command brings every table up to date.
+- **Scripts and tests run from the project root:** `python src/build_all.py`, then `pytest -q`. A local git hook (`.git/hooks/post-merge`, not versioned) runs `build_all.py` automatically after any `git pull` that brings new `data/raw/` or `src/` changes; on a fresh clone, recreate it.
 - **Tools planned:** pandas, DuckDB, scikit-learn / LightGBM, statsmodels, PuLP (HiGHS/CBC solver), Streamlit.
 
 ## FPL API endpoints (base: https://fantasy.premierleague.com/api/)
