@@ -18,7 +18,7 @@ I'm a student building this to learn skills I can talk about in internship inter
 - **Keep it simple.** Build the crude end-to-end version of all three stages first, then improve the weakest piece.
 - **Flag leakage risks** whenever we touch features, joins or evaluation.
 - I'm new to some tooling (git, terminals, virtual environments, GitHub Actions). Give exact commands and say what each one does.
-- **Record everything in the plan doc** (https://claude.ai/code/artifact/552b9df2-e6af-4f4f-b688-02f3eacee9cf): add a row to its Progress log (newest first) for each change, keep Open items current, and update the relevant phase section and diagrams when the design changes.
+- **Record everything in the plan doc** (https://claude.ai/code/artifact/552b9df2-e6af-4f4f-b688-02f3eacee9cf): add a row to its Progress log (newest first) for each change, keep Open items current, update the relevant phase section and diagrams when the design changes, and add or update rows in its Skills table (skill, status, where in the repo, a checked learning link) when a new skill comes into use.
 
 ## Current status (update this as we go)
 
