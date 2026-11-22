@@ -23,6 +23,7 @@ What's in `data/raw/`, how the pieces fit together, and the traps. Every claim h
 | `teams` | team × season | Season id → stable `team_code` → names: lookup |
 | `players_daily` | player × daily snapshot | Point-in-time flags, price, ownership, `ep_next` (joined into `player_gw`) |
 | `gameweeks` | season × gameweek | Deadlines (joined into `player_gw`) |
+| `xp` | player × **upcoming** gameweek (next 6) | v0 prediction from `src/predict_baseline.py`: last-5 points per match × fixtures × availability. Input to the optimizer; rebuilt daily, so it always starts at the next deadline after the latest snapshot |
 
 Tables keep codes, not names; join `players` / `teams` when a person needs to read the result. `players.team_code` is the club at season end (past) or today (current): for the club in a given match use `player_match.team_code`.
 
@@ -69,6 +70,9 @@ The same row mixes both kinds, so the question is per **field**, not per file.
 
 - An outcome becomes a feature only for **later** gameweeks, through a shifted rolling window (`f_*` columns in `player_gw`, enforced by `tests/test_player_gw.py::test_no_leakage_perturbation`).
 - `selected` (ownership) for a GW is counted at the deadline. That's effectively pre-deadline, but treat it with care.
+- **Backtesting a prediction has two more leaks** (both safe live, both wrong when replaying the past):
+  - `fixtures` holds the schedule as it is **now** (or at season end for past seasons). A rescheduled match shows up in its new gameweek, so a backtest "knows" about a double before it was announced. Live use is fine: the table is refreshed daily. Point-in-time fix: the schedule from the daily snapshot before each deadline (2026-27 only).
+  - `players.team_code` is the club **today** (or at season end). For a past prediction, take the club from the player's last `player_gw` row before that gameweek, or a January signing is predicted at his new club in August.
 - **Leaks if used for past GWs:** anything from `bootstrap-static` `elements` (`total_points`, `form`, `now_cost`, `selected_by_percent`, `ep_next`) and `teams` (`strength_*`). These are values as of the snapshot day.
 
 ## Deadlines (the leakage clock)

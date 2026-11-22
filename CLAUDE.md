@@ -32,6 +32,14 @@ Phase 0 (data), target finish Oct 25, 2026:
 - [x] Fully automatic data: the daily job saves snapshots + finished GWs, re-downloads `element_summary` when a GW finishes, then runs `build_all.py` + pytest (a red run = GitHub email).
 - [x] Snapshot features: `players_daily` (every daily snapshot) joined onto `player_gw` as of each deadline (`snap_*` columns, from GW6 on).
 - [x] `fixtures` (all seasons, incl. future matches), `teams`, `players` lookups; `fpl_xp` baseline (NaN where vaastav didn't record it).
+
+End-to-end v0, gate Nov 8, 2026 (all stages run):
+
+- [x] v0 xP: `src/predict_baseline.py` → `processed/xp.parquet` (last-5 points per match × fixtures × availability, next 6 GWs, rebuilt daily by `build_all.py`). Walk-forward reproduces the last-5 bar (DECISIONS.md 2026-11-05).
+- [ ] Wildcard MILP: `src/wildcard.py` (PuLP) reads `xp` + latest prices from `players_daily`; test that every squad is legal.
+
+Phase 1 (after the gate):
+
 - [ ] Phase 1 starts with a `player_fixture` table (one row per player per fixture, GW-frozen `f_*` + opponent, home, rest days); predict per fixture, sum to GW. See DATA.md "Double gameweeks".
 
 ## Repo layout
@@ -46,6 +54,7 @@ fpl-engine/
 ├── src/build_snapshots.py           daily snapshots -> processed/players_daily
 ├── src/build_player_gw.py           all of the above -> processed/player_gw (targets, f_*, snap_*)
 ├── src/build_all.py                 rebuilds every processed table in order
+├── src/predict_baseline.py          v0 xP for the next 6 GWs -> processed/xp (last step of build_all)
 ├── tests/                           pytest: synthetic tests (incl. leakage) + real-data checks
 ├── notebooks/                       exploration only
 ├── data/raw/                        raw data, gzipped (never edit)
@@ -55,6 +64,7 @@ fpl-engine/
 │   └── vaastav/<season>/            past seasons: merged_gw, players_raw, teams, fixtures
 ├── data/processed/                  Parquet tables rebuilt from raw (git-ignored)
 ├── DATA.md                          field notes: keys, units, grain, leakage, gaps
+├── DECISIONS.md                     what was tried, why, and the real numbers (newest first)
 ├── requirements.txt                 packages for .venv
 └── .gitignore                       .venv/, __pycache__/, .DS_Store, data/processed/
 ```

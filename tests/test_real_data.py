@@ -139,3 +139,30 @@ def test_fpl_xp_unrecorded_gameweeks_are_nan_not_zero():
     past = gw[gw["season"] != CURRENT_SEASON]
     all_zero = past.groupby(["season", "gw"])["fpl_xp"].apply(lambda x: x.notna().any() and (x.fillna(0) == 0).all())
     assert not all_zero.any(), all_zero[all_zero].index.tolist()
+
+
+needs_xp = pytest.mark.skipif(
+    not (PROCESSED / "xp.parquet").exists(),
+    reason="run python src/build_all.py first")
+
+
+@needs_xp
+def test_xp_covers_every_player_for_the_next_gameweeks():
+    """One row per current player per gameweek, starting at the first deadline
+    after the snapshot it was made from, and no missing predictions (the
+    optimizer would silently drop a NaN player)."""
+    xp = pd.read_parquet(PROCESSED / "xp.parquet")
+    players = pd.read_parquet(PROCESSED / "players.parquet")
+    gameweeks = pd.read_parquet(PROCESSED / "gameweeks.parquet")
+    current = players[players["season"] == CURRENT_SEASON]
+
+    assert not xp.duplicated(["player_code", "gw"]).any()
+    assert set(xp["player_code"]) == set(current["player_code"])
+    assert xp[["xp", "availability", "pts_per_match"]].notna().all().all()
+    assert xp["availability"].between(0, 1).all()
+
+    deadlines = gameweeks[gameweeks["season"] == CURRENT_SEASON].set_index("gw")["deadline_time"]
+    first_gw = xp["gw"].min()
+    as_of = xp["as_of"].iloc[0]
+    assert deadlines[first_gw] > as_of                            # predicts the NEXT deadline...
+    assert first_gw == 1 or deadlines[first_gw - 1] <= as_of      # ...not one further on

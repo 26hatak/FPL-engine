@@ -1,4 +1,5 @@
-"""Rebuild every processed table from data/raw, in dependency order.
+"""Rebuild every processed table from data/raw, in dependency order,
+ending with the v0 xp prediction.
 
 Run from the project root: python src/build_all.py
 
@@ -10,9 +11,11 @@ import build_fixtures
 import build_player_gw
 import build_player_match
 import build_snapshots
+import predict_baseline
 
 if __name__ == "__main__":
     build_player_match.main()   # raw -> player_match, gameweeks
     build_fixtures.main()       # raw -> fixtures (played + future), teams, players
     build_snapshots.main()      # raw daily snapshots -> players_daily
     build_player_gw.main()      # all three -> player_gw
+    predict_baseline.main()     # player_gw + fixtures + latest snapshot -> xp (v0)
