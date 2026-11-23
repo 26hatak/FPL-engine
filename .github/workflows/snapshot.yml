@@ -33,3 +33,14 @@ jobs:
       # makes the run red and GitHub emails you; the data above is already saved.
       - run: python src/build_all.py
       - run: python -m pytest -q
+      # Publish the app's tables. A step runs only if every step above
+      # succeeded, so a red build or test run never replaces good data.
+      - run: python src/publish.py
+      - name: Upload tables to the data-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}   # gh reads this; contents: write covers releases
+        run: |
+          gh release view data-latest > /dev/null 2>&1 ||
+            gh release create data-latest --title "Latest data" --latest=false \
+              --notes "Tables for the app; the daily job replaces them."
+          gh release upload data-latest publish/* --clobber
