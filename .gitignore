@@ -222,3 +222,6 @@ __marimo__/
 # Rebuilt from data/raw by src/build_*.py
 data/processed/
 .DS_Store
+
+# Tables staged for the data-latest release by src/publish.py
+publish/
