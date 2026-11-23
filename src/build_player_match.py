@@ -126,6 +126,11 @@ def load_past_season(season: str) -> pd.DataFrame:
     teams for stable codes. merged_gw already has the club at the time, by name."""
     folder = RAW / "vaastav" / season
     matches = pd.read_csv(folder / "merged_gw.csv.gz")
+    # vaastav 2025-26 repeats 10 rows exactly (2 players, GW1-5): one match must
+    # be one row, or player_gw counts those matches twice. Only EXACT copies are
+    # dropped; two different rows for the same match would still fail the
+    # uniqueness test (tests/test_real_data.py), so nothing is hidden.
+    matches = matches.drop_duplicates()
     players = pd.read_csv(folder / "players_raw.csv.gz").set_index("id")
     teams = pd.read_csv(folder / "teams.csv.gz")
 

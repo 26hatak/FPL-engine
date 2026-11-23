@@ -40,9 +40,16 @@ End-to-end v0, gate Nov 8, 2026 (all stages run):
 
 Product (decided 2026-11-22): a public Streamlit app. Users enter an FPL team ID, the squad is imported read-only (never a password), the app suggests transfers and shows a per-component xP breakdown. Logic stays in `src/` as plain tested functions; `app/` only does layout. Full plan and revised timeline: `/Users/keitahata/.claude/plans/i-want-to-make-playful-nygaard.md` (copy into the plan doc).
 
+- [x] Read-only team sync: `src/fpl_sync.py` (squad, selling prices, bank, free transfers, chips from a team ID; pure `reconstruct_*` functions tested offline).
+- [x] Published data: the daily job runs `src/publish.py` and uploads the app's tables to the `data-latest` GitHub release; `src/app_data.load_table` reads local files on a laptop, the release when hosted. Loaders in `src/` go through it.
+- [ ] Transfer planner (`src/planner.py`), then the Streamlit app (`app/`).
+
 Phase 1 (after the gate):
 
-- [ ] Phase 1 starts with a `player_fixture` table (one row per player per fixture, GW-frozen `f_*` + opponent, home, rest days); predict per fixture, sum to GW. See DATA.md "Double gameweeks".
+- [x] `player_fixture` (one row per player per fixture, played + future, GW-frozen `f_*`/`snap_*`, opponent, home, rest days): `src/build_player_fixture.py`.
+- [x] v1 decomposed xP, no ML: `scoring.yaml` + `src/predict_components.py` → `xp_components` (9 components that sum to xp, plus drivers, for the app's breakdown). Walk-forward Spearman 0.720 vs last-5 0.705 and FPL 0.759 (DECISIONS.md 2026-11-22). `xp` (v0) is still the optimizer's input; switch after `solve_wildcard` is written and compare squads.
+- [ ] Minutes model (the gap to FPL is who plays: 0.307 vs 0.558 Spearman among players who played). Don't use `n_appear` / `n_60` from `player_gw` as features: they're same-GW outcomes.
+- [ ] Scale xA to FPL assists (assists under-predicted 25%); refit bonus on 2026/27 only once it has enough matches (BPS reworked).
 
 ## Repo layout
 
@@ -56,8 +63,15 @@ fpl-engine/
 ├── src/build_snapshots.py           daily snapshots -> processed/players_daily
 ├── src/build_player_gw.py           all of the above -> processed/player_gw (targets, f_*, snap_*)
 ├── src/build_all.py                 rebuilds every processed table in order
-├── src/predict_baseline.py          v0 xP for the next 6 GWs -> processed/xp (last step of build_all)
+├── src/predict_baseline.py          v0 xP for the next 6 GWs -> processed/xp
+├── src/build_player_fixture.py      player_gw + fixtures -> processed/player_fixture (played + future)
+├── src/predict_components.py        v1 decomposed xP -> processed/xp_components (last step of build_all)
+├── src/evaluate_components.py       walk-forward evaluation of v1 vs last-5 and fpl_xp
 ├── src/wildcard.py                  wildcard MILP: best 15 + XI + captain per GW from xp and prices
+├── src/fpl_sync.py                  read-only team import by FPL team ID (squad, selling prices, FTs)
+├── src/publish.py                   app tables -> publish/ -> data-latest release (daily job)
+├── src/app_data.py                  load_table: local data/processed/ or the release when hosted
+├── scoring.yaml                     FPL 2026/27 points per event (checked against the rules page)
 ├── tests/                           pytest: synthetic tests (incl. leakage) + real-data checks
 ├── notebooks/                       exploration only
 ├── data/raw/                        raw data, gzipped (never edit)

@@ -21,6 +21,8 @@ Notes for talking about this project in quant, ML engineering and data science i
 | FPL's own prediction (`fpl_xp`) | MAE **0.855**, within-position Spearman **0.759** | The bar to beat |
 | Last-5 average baseline | MAE **1.079**, Spearman **0.705** | The floor |
 | v0 xP (walk-forward, 1 GW ahead) | MAE **1.071**, Spearman **0.705** | Reproduces the floor, so the code is right |
+| v1 decomposed xP, no ML (walk-forward) | MAE **1.014**, Spearman **0.720** | Beats last-5 on every metric; DECISIONS 2026-11-22 |
+| Spearman among players who played | v1 **0.307** vs FPL **0.558** | The remaining gap is minutes (who plays) |
 | Horizon decay, Spearman | **0.746** (1 GW ahead) → **0.639** (6 GWs ahead), about −14% | Justifies the discount δ ≈ 0.85–0.9 |
 | MAE on players who actually played | **2.23** vs 1.04 on all rows | Most rows are "predicted 0, scored 0" |
 | Treating unrecorded `fpl_xp` as NaN, not 0 | Pearson 0.51 → **0.73** (+0.22) | One data-cleaning decision, big effect |
@@ -153,7 +155,18 @@ Phase 2 plus time. Variables per gameweek: squad x_i,t, transfers in_i,t / out_i
 
 **Quant link:** this is portfolio rebalancing with transaction costs. A transfer is only worth it if the expected gain over the horizon beats the cost (a hit = −4 points), the same way a trade must beat its fees and slippage. Doing nothing is often optimal.
 
-## 8. The decomposed points model 🔜 ⭐
+## 8. The decomposed points model ✅ v1 (no ML), 🔜 sub-models ⭐
+
+**Built (v1):** `scoring.yaml` + `src/predict_components.py`. xP = 9 components (appearance, goals, assists, clean sheet, saves, goals conceded, DefCon, bonus, cards), each = driver × points from the YAML. The drivers are simple rates with no ML: recent minutes rates, xG/xA per 90 shrunk toward the position average (empirical Bayes), and team attack/defence ratings for P(CS).
+- **Result:** Spearman 0.720 vs 0.705 for last-5. Every component's average matches reality (e.g. clean sheets 0.171 predicted vs 0.171 actual), and the components sum to xP exactly. The app's breakdown is simply these columns.
+- **Details worth knowing:**
+  - "1 point per 3 saves" is E[floor(saves/3)] over a Poisson distribution, not λ/3: 2 saves score nothing.
+  - DefCon is P(count ≥ threshold), not rate × points: it's a step.
+  - Shrinkage strength comes from split-half reliability, not tuning. A defender's xG is mostly noise (pulled in hard); DefCon is a stable trait (barely pulled).
+- **Leakage guard:** every estimated constant (team ratings, league average, position priors, bonus coefficients) is accumulated per gameweek and shifted by one, like the `f_*` features. A poison test proves nothing at or before a gameweek changes when its outcomes do.
+- **The honest gap:** among players who actually played, FPL ranks at 0.558 and v1 at 0.307. The events are calibrated, so the error is *who plays*, which is the minutes model below.
+
+**Still planned (🔜):**
 
 Don't predict points directly. Predict the pieces and apply the scoring rules from a config file:
 

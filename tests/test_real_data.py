@@ -41,6 +41,15 @@ def test_every_match_has_codes_and_position():
     assert set(pm["position"]) == {"GK", "DEF", "MID", "FWD"}
 
 
+@needs_processed
+def test_one_row_per_player_per_match():
+    """A repeated row would count a match twice in player_gw (vaastav 2025-26
+    had 10 exact copies until build_player_match dropped them)."""
+    pm = pd.read_parquet(PROCESSED / "player_match.parquet")
+    dup = pm.duplicated(["season", "player_code", "fixture"], keep=False)
+    assert not dup.any(), pm.loc[dup, ["season", "player_code", "fixture", "gw"]].head(10)
+
+
 def live_points():
     """FPL's official points per player per finished GW, from event/live."""
     return pd.DataFrame(

@@ -2,6 +2,20 @@
 
 What was tried, why, and what happened, with real numbers. Newest first.
 
+## 2026-11-23: dropped vaastav's duplicate rows
+
+**What:** vaastav's 2025-26 `merged_gw` repeats 10 rows exactly (2 players), so `player_gw` counted those matches twice. `build_player_match` now drops exact copies, and a real-data test checks one row per player per match.
+
+**Effect** (`python src/evaluate_components.py`, same bar rows):
+
+| Model | MAE before → after | Within-position Spearman |
+| --- | --- | --- |
+| last-5 | 1.079 → 1.078 | 0.705 (same) |
+| `fpl_xp` | 0.855 → 0.854 | 0.759 (same) |
+| v1 | 1.015 → 1.014 | 0.720 (same) |
+
+Too small to change any decision. The bars quoted elsewhere stay valid to 3 decimals except MAE (−0.001).
+
 ## 2026-11-22: v1 decomposed xP, no ML (`xp_components`)
 
 **Question:** can xP be a sum of scoring pieces, each driven by a visible number, without losing accuracy? The app needs the breakdown, and later ML should only change how a driver is estimated.
