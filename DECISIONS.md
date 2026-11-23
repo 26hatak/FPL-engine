@@ -2,6 +2,69 @@
 
 What was tried, why, and what happened, with real numbers. Newest first.
 
+## 2026-11-22: v1 decomposed xP, no ML (`xp_components`)
+
+**Question:** can xP be a sum of scoring pieces, each driven by a visible number, without losing accuracy? The app needs the breakdown, and later ML should only change how a driver is estimated.
+
+**What:**
+- `scoring.yaml`: 2026/27 points per event, checked against the official rules page on 2026-11-22. GK goal = 10, CS: GK/DEF 4, MID 1, FWD 0. DefCon: DEF 10+ CBIT, MID/FWD 12+ CBIRT, 2 points, GK not eligible.
+- `src/build_player_fixture.py` → `player_fixture`: one row per player per fixture, played and future (82,464 rows, 18,872 future). `f_*`/`snap_*` come from `build_player_gw`'s own functions: future gameweeks are added as empty rows, so they carry the state at the last deadline. Both fixtures of a double share them. Opponent, home and rest days are per fixture.
+- `src/predict_components.py` → `xp_components` (same players × GW12–17 as `xp`). xp = appear + goals + assists + CS + saves + conceded + DefCon + bonus + cards.
+
+| Driver | v1 estimate | Why |
+| --- | --- | --- |
+| `p_play`, `p60`, `exp_mins` | Share of the last 5 matches with minutes / with 60+, minutes per match; × availability (next GW only, `u` = 0 throughout) | Same signal and window as the v0 baseline, but split, because 1 vs 2 appearance points and the CS gate need P(60+), not mean minutes |
+| `xg90`, `xa90` | Last 10 GWs per 90, shrunk to the position mean: (events + m·prior) / (90s + m) | Empirical Bayes: one big match says little. m is set from split-half reliability (below), not tuned |
+| `lambda_g`, `lambda_a` | `xg90` × opponent's xG conceded / league average × home factor | The player's own rate already contains his own team, so only the opponent adjusts it |
+| `p_cs` | exp(−λ_against), λ_against = opponent attack × own defence / league average ÷ home factor; team xG over the last 10 matches, shrunk by 5 matches | Poisson goals, Dixon–Coles-style multiplicative ratings |
+| saves, conceded | E[floor(Poisson/3)] and E[floor(Poisson/2)] | "1 point per 3 saves" is not λ/3: 2 saves score nothing |
+| `p_defcon` | P(Poisson(shrunk DefCon/90) ≥ threshold \| 60+) | The threshold is a step, so a rate × points would be wrong |
+| bonus | Least squares of bonus on [60+, 1–59 min, goals, assists, CS] per position, no intercept | "Average bonus given the events", linear, so it applies to expectations |
+| cards | Position average card points per 90 × `exp_mins` | Small and noisy; a player-level rate isn't worth it yet |
+
+**Leakage:** every estimated constant (team ratings, league average, home factor, position priors, bonus coefficients, shrinkage priors) is summed per GW, accumulated, then shifted one GW, the same rule as `f_*`. `tests/test_components.py::test_no_leakage_perturbation` poisons one GW's outcomes and checks that nothing at or before it moves. I checked that it can fail: removing either shift turns it red.
+
+**Shrinkage strength m** (2024-25, players with 450+ minutes in both halves; m = 90s per half × (1 − ρ) / ρ):
+
+| Stat | DEF | MID | FWD | GK |
+| --- | --- | --- | --- | --- |
+| xG | 28 (ρ 0.30) | 4 (0.73) | 13 (0.47) | – |
+| xA | 3 (0.78) | 5 (0.70) | 8 (0.60) | – |
+| Saves | – | – | – | 18 (0.42) |
+| DefCon (2025-26) | 3 (0.81) | 3 (0.80) | 6 (0.62) | – |
+
+A defender's xG is mostly noise (set pieces), while DefCon is a stable trait. The prior's strength should differ by stat, and the data says by how much. Plain method of moments failed (negative variances): xG is a sum of small shot values, far less noisy than a Poisson count.
+
+**Results.** Walk-forward, 1 GW ahead, on the same 32,068 rows as the 2026-10-14 bar (`python src/evaluate_components.py`):
+
+| Rows | Model | MAE | Within-position Spearman | Pearson |
+| --- | --- | --- | --- | --- |
+| All 32,068 | last-5 | 1.079 | 0.705 | 0.493 |
+| | **v1** | **1.015** | **0.720** | **0.545** |
+| | `fpl_xp` | 0.855 | 0.759 | 0.731 |
+| Minutes > 0 (13,523) | last-5 | 2.109 | 0.265 | 0.254 |
+| | **v1** | **1.931** | **0.306** | **0.301** |
+| | `fpl_xp` | 1.653 | 0.558 | 0.607 |
+
+Calibration (mean points per player-GW, predicted vs actual): appear 0.720/0.712, goals 0.195/0.186, assists 0.079/0.105, CS 0.171/0.171, saves 0.019/0.018, conceded −0.066/−0.066, DefCon 0.021/0.023, bonus 0.087/0.088, cards −0.068/−0.061; total 1.158/1.175.
+
+Shrinkage sensitivity: no shrinkage 1.014 / 0.718, one m = 6 1.015 / 0.720, per-stat m 1.015 / 0.720.
+
+**Decision:** keep `xp_components` as the Phase 1 base and the app's breakdown. `xp` (v0) stays the optimizer's input until the MILP session chooses to switch.
+
+**What this tells us:**
+- Decomposing beats last-5 on every metric, with no ML, and the pieces add up to the right total. The structure works.
+- **The gap to FPL is minutes.** Among players who played, FPL ranks at 0.558 and we rank at 0.306. Each event component is calibrated, so the error is who plays. That's the minutes model, next on the plan as the most important piece. Past seasons have no availability flags, so part of FPL's edge is team news we can't replay.
+- Assists are 25% under-predicted: FPL awards assists more generously than Opta xA counts them (rebounds, deflections, penalties won). Fix: scale xA to FPL assists per position.
+- Shrinkage barely moves averaged metrics, because most rows are decided by minutes. Its job is the top of the table: unshrunk, the best xG/90 this week is Mundle (1 minute played, 15.3); shrunk, it's Barry/Haaland (0.57/0.54), and Hinshelwood (157 min, 1.44) falls to 0.55. The optimizer reads the top of the table, so shrinkage is the guard against the optimizer's curse.
+
+**Caveats:**
+- Same as the bar: the past schedule is end-of-season, so doubles are known early. The m values were estimated on 2024-25, which is also in the evaluation rows: 10 numbers, a small leak, flagged.
+- Bonus coefficients are dominated by the old BPS. 2026/27 reworked it, so refit on this season only once it has enough matches.
+- Penalties and own goals are in `scoring.yaml` but not modelled (≈0.01 points per match).
+- No standard deviation yet.
+- vaastav 2025-26 repeats 10 rows exactly (2 players), so `player_gw` double-counts those matches. `player_fixture` drops the duplicates, but `build_player_match` should too (follow-up).
+
 ## 2026-11-05: v0 xP = last-5 points per match (stage 1 of the end-to-end gate)
 
 **Question:** what is the simplest xP table the wildcard optimizer can run on, so all stages run by the Nov 8 gate?

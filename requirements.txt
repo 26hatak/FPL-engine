@@ -3,5 +3,6 @@ pandas
 pyarrow
 pytest
 ipykernel
+pyyaml
 pulp==3.3.2      # MILP modelling; 4.x has a new API that tutorials don't use yet
 highspy==1.16.0  # HiGHS solver for PuLP

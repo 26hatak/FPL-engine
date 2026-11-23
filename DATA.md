@@ -23,6 +23,8 @@ What's in `data/raw/`, how the pieces fit together, and the traps. Every claim h
 | `teams` | team × season | Season id → stable `team_code` → names: lookup |
 | `players_daily` | player × daily snapshot | Point-in-time flags, price, ownership, `ep_next` (joined into `player_gw`) |
 | `gameweeks` | season × gameweek | Deadlines (joined into `player_gw`) |
+| `player_fixture` | player × **fixture**, played and future | Per-fixture modelling table: opponent, home, rest days, `n_fixtures_gw`; `f_*`/`snap_*` frozen at the GW deadline and shared by both fixtures of a double; outcomes per match (NaN for future). Built by `src/build_player_fixture.py` |
+| `xp_components` | player × **upcoming** gameweek (next 6) | v1 decomposed xP from `src/predict_components.py`: `xp_appear … xp_cards` (sum = `xp`) and their drivers (`p_play`, `p60`, `exp_mins`, `lambda_g`, `lambda_a`, `p_cs`, `p_defcon`, `opponent`/`home` as lists, one per fixture). Points per event from `scoring.yaml`. For the app's breakdown |
 | `xp` | player × **upcoming** gameweek (next 6) | v0 prediction from `src/predict_baseline.py`: last-5 points per match × fixtures × availability. Input to the optimizer; rebuilt daily, so it always starts at the next deadline after the latest snapshot |
 
 Tables keep codes, not names; join `players` / `teams` when a person needs to read the result. `players.team_code` is the club at season end (past) or today (current): for the club in a given match use `player_match.team_code`.
