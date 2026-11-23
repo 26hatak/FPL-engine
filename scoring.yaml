@@ -1,0 +1,64 @@
+# FPL scoring rules, 2026/27: points per event, by position.
+#
+# Source: https://fantasy.premierleague.com/help/rules ("How are points scored?",
+# "Defensive contributions", "Clean sheets", "Red Cards"). Every value below was
+# checked against that page on 2026-11-22. Re-check it before each season: a rule
+# change should be an edit here, never in Python.
+#
+# Read by src/predict_components.py (xp = sum of components, each one
+# "points per event x expected events").
+
+season: "2026-27"
+checked: "2026-11-22"
+source: "https://fantasy.premierleague.com/help/rules"
+
+appearance:
+  under_60: 1        # "For playing up to 60 minutes"
+  over_60: 2         # "For playing 60 minutes or more (excluding stoppage time)"; not 1 + 2
+
+goal:                # per goal scored
+  GK: 10
+  DEF: 6
+  MID: 5
+  FWD: 4
+
+assist: 3            # every position
+
+clean_sheet:         # no goal conceded while on the pitch AND 60+ minutes played
+  GK: 4
+  DEF: 4
+  MID: 1
+  FWD: 0             # not listed on the rules page
+
+saves:               # goalkeepers only
+  per: 3             # "For every 3 shot saves"
+  points: 1
+
+goals_conceded:      # goalkeepers and defenders only
+  per: 2             # "For every 2 goals conceded"
+  points: -1
+  positions: [GK, DEF]
+
+defensive_contribution:
+  # Defenders: clearances + blocks + interceptions (CBI) + tackles >= 10.
+  # Midfielders and forwards: the same plus recoveries >= 12.
+  # Goalkeepers are not eligible. Points do not stack (20 CBIT is still 2).
+  threshold:
+    DEF: 10
+    MID: 12
+    FWD: 12
+  points: 2
+  first_season: "2025-26"   # the rule did not exist in 2024-25 (needed to evaluate on past seasons)
+
+cards:
+  yellow: -1
+  red: -3            # "Red card deductions include any points deducted for yellow cards": a red is -3 in total
+
+penalties:           # in the rules, not modelled yet (rare: a few hundredths of a point per match)
+  save: 5
+  miss: -2
+
+own_goal: -2         # in the rules, not modelled yet
+
+bonus:               # 3 / 2 / 1 for the top three BPS scores in each match
+  max_per_match: 3

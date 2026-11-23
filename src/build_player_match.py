@@ -25,7 +25,7 @@ KEYS = ["season", "player_code", "element", "fixture", "gw", "kickoff_time",
 OUTCOMES = ["minutes", "starts", "goals_scored", "assists", "clean_sheets",
             "goals_conceded", "saves", "bonus", "bps", "expected_goals",
             "expected_assists", "expected_goals_conceded", "defensive_contribution",
-            "total_points"]
+            "yellow_cards", "red_cards", "total_points"]
 # Known before the deadline of that gameweek (price, ownership, transfers).
 PRE_DEADLINE = ["value", "selected", "transfers_in", "transfers_out"]
 # FPL's own expected points for the gameweek (vaastav's xP; past seasons only,

@@ -46,6 +46,7 @@ def aggregate_targets(player_match: pd.DataFrame) -> pd.DataFrame:
     """Collapse matches to gameweeks: one row per GW_KEYS with
       - every OUTCOMES column summed (a double gameweek counts both matches)
       - n_fixtures: number of matches the player had that GW
+      - n_appear, n_60: of those, matches with minutes > 0 and with 60+
       - value: price at that GW (first match's value; same for both in a double)
       - n_home: home matches that GW (0, 1 or 2): a double can be one of each
       - team_code, position: the player's club and position that GW
@@ -61,6 +62,12 @@ def aggregate_targets(player_match: pd.DataFrame) -> pd.DataFrame:
     by_gw = player_match.groupby(GW_KEYS)
     targets = by_gw[OUTCOMES].sum(min_count=1)
     targets["n_fixtures"] = by_gw.size()
+    # Per-match minutes events, counted before summing (a double's 180 minutes
+    # can't tell "two 90s" from "one 90 and a 0 + ..."). Inputs to p_play / p60.
+    targets["n_appear"] = (player_match["minutes"] > 0).groupby(
+        [player_match[k] for k in GW_KEYS]).sum()
+    targets["n_60"] = (player_match["minutes"] >= 60).groupby(
+        [player_match[k] for k in GW_KEYS]).sum()
     targets["n_home"] = by_gw["was_home"].sum()
     targets["value"] = by_gw["value"].first()
     targets["team_code"] = by_gw["team_code"].first()
@@ -69,7 +76,7 @@ def aggregate_targets(player_match: pd.DataFrame) -> pd.DataFrame:
     return targets.reset_index()
 
 
-def add_rolling_features(player_gw: pd.DataFrame, windows=(3, 5)) -> pd.DataFrame:
+def add_rolling_features(player_gw: pd.DataFrame, windows=(3, 5, 10)) -> pd.DataFrame:
     """Add f_* feature columns, per player, using ONLY earlier gameweeks.
 
     For each N in windows, over the player's last N gameweeks WITH a match
@@ -77,11 +84,19 @@ def add_rolling_features(player_gw: pd.DataFrame, windows=(3, 5)) -> pd.DataFram
     (min_periods=1):
       f_minutes_mean_{N}   mean minutes per gameweek
       f_start_rate_{N}     starts / fixtures
+      f_appear_rate_{N}    matches with minutes > 0 / fixtures   (-> p_play)
+      f_60_rate_{N}        matches with 60+ minutes / fixtures   (-> p60)
+      f_mins_per_match_{N} minutes / fixtures (per MATCH, so a double doesn't inflate it)
+      f_n_matches_{N}      fixtures behind those rates
+      f_minutes_sum_{N}    minutes behind the per-90 rates (the sample size
+                           that empirical-Bayes shrinkage needs)
       f_xg_per90_{N}       sum(expected_goals) / sum(minutes) * 90 (NaN if 0 minutes)
       f_xa_per90_{N}       same with expected_assists
+      f_saves_per90_{N}    same with saves
       f_defcon_per90_{N}   same with defensive_contribution, but count only the
                            minutes from gameweeks where DefCon was recorded
                            (2024-25 minutes must not dilute the rate)
+      f_defcon_minutes_{N} the minutes behind f_defcon_per90_{N}
 
     The leakage rule: the row for GW t may only use GWs < t. A player's first
     ever row therefore has NaN features. A blank-GW row carries the values
@@ -113,11 +128,20 @@ def add_rolling_features(player_gw: pd.DataFrame, windows=(3, 5)) -> pd.DataFram
         minutes = rolling_sum("minutes", n)
         features[f"f_minutes_mean_{n}"] = (
             by_player["minutes"].rolling(n, min_periods=1).mean().reset_index(level=0, drop=True))
-        features[f"f_start_rate_{n}"] = rolling_sum("starts", n) / rolling_sum("n_fixtures", n)
+        matches = rolling_sum("n_fixtures", n)
+        features[f"f_start_rate_{n}"] = rolling_sum("starts", n) / matches
+        features[f"f_appear_rate_{n}"] = rolling_sum("n_appear", n) / matches
+        features[f"f_60_rate_{n}"] = rolling_sum("n_60", n) / matches
+        features[f"f_mins_per_match_{n}"] = minutes / matches
+        features[f"f_n_matches_{n}"] = matches
+        features[f"f_minutes_sum_{n}"] = minutes
         features[f"f_xg_per90_{n}"] = per90(rolling_sum("expected_goals", n), minutes)
         features[f"f_xa_per90_{n}"] = per90(rolling_sum("expected_assists", n), minutes)
+        features[f"f_saves_per90_{n}"] = per90(rolling_sum("saves", n), minutes)
+        defcon_minutes = rolling_sum("defcon_minutes", n)
         features[f"f_defcon_per90_{n}"] = per90(rolling_sum("defensive_contribution", n),
-                                                rolling_sum("defcon_minutes", n))
+                                                defcon_minutes)
+        features[f"f_defcon_minutes_{n}"] = defcon_minutes
 
     cols = list(features.columns)
     df = df.join(features)                                 # NaN on blank rows
