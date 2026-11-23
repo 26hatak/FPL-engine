@@ -15,7 +15,7 @@ app adds the caching itself, e.g.
     @st.cache_data(ttl=3600)        # re-download at most once an hour
     def table(name): return load_table(name)
 
-Names: xp, fixtures, teams, players, prices, xp_components (once Phase 1 writes it).
+Names: xp, fixtures, teams, players, prices, gw_values, xp_components (once Phase 1 writes it).
 """
 import io
 import json
@@ -25,10 +25,15 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from publish import PROCESSED, latest_prices
+from publish import PROCESSED, gw_values, latest_prices
 
 # Public repo, so release assets download without a token. FPL_DATA_URL
 # overrides it (a fork, or a test release).
+# Published tables that aren't files in data/processed/: publish.py cuts them
+# from a bigger table, so do the same locally and development matches hosting.
+DERIVED = {"prices": ("players_daily", latest_prices),
+           "gw_values": ("player_gw", gw_values)}
+
 RELEASE_URL = os.environ.get(
     "FPL_DATA_URL", "https://github.com/26hatak/FPL-engine/releases/download/data-latest")
 
@@ -46,11 +51,10 @@ def load_table(name: str, processed: Path = PROCESSED,
     local = processed / f"{name}.parquet"
     if local.exists():
         return pd.read_parquet(local)
-    # prices isn't a processed table: publish.py cuts it from players_daily.
-    # Do the same locally so development matches what the hosted app sees.
-    daily = processed / "players_daily.parquet"
-    if name == "prices" and daily.exists():
-        return latest_prices(pd.read_parquet(daily))
+    if name in DERIVED:
+        source, cut = DERIVED[name]
+        if (processed / f"{source}.parquet").exists():
+            return cut(pd.read_parquet(processed / f"{source}.parquet"))
     return pd.read_parquet(io.BytesIO(_download(f"{base_url}/{name}.parquet")))
 
 

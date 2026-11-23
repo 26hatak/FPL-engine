@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from app_data import load_table
+
 PROCESSED = Path("data/processed")
 
 BUDGET = 1000          # tenths of £m: £100.0m, a fresh wildcard squad
@@ -54,15 +56,20 @@ def load_inputs(processed: Path = PROCESSED) -> tuple[pd.DataFrame, pd.DataFrame
 
     Only players in both xp and the latest snapshot are kept: a player with no
     price can't be bought, and one with no xp can't be valued.
-    """
-    xp = pd.read_parquet(processed / "xp.parquet")
-    daily = pd.read_parquet(processed / "players_daily.parquet")
-    names = pd.read_parquet(processed / "players.parquet")
 
-    # Same snapshot xp was made from, so prices and predictions describe the same moment.
+    Tables come through app_data.load_table: local files on a laptop, the
+    data-latest release when hosted.
+    """
+    xp = load_table("xp", processed)
+    latest = load_table("prices", processed)
+    names = load_table("players", processed)
+
+    # Prices must be from the snapshot xp was made from, so both describe the same moment.
     as_of = xp["as_of"].iloc[0]
-    prices = (daily[daily["snapshot_time"] == as_of]
-              .set_index("player_code")["now_cost"].rename("price"))
+    if latest["snapshot_time"].max() != as_of:
+        raise ValueError(f"xp is as of {as_of} but prices are as of "
+                         f"{latest['snapshot_time'].max()}: run python src/build_all.py")
+    prices = latest.set_index("player_code")["now_cost"].rename("price")
 
     xp_wide = xp.pivot(index="player_code", columns="gw", values="xp")
     info = xp.drop_duplicates("player_code").set_index("player_code")[["team_code", "position"]]

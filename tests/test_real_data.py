@@ -190,3 +190,26 @@ def test_wildcard_on_real_data_is_legal():
     except NotImplementedError:
         pytest.skip("solve_wildcard not written yet")
     assert check_plan(plan, players, list(xp_wide.columns)) == []
+
+
+@needs_xp
+def test_app_loaders_work_from_published_tables_alone(tmp_path, monkeypatch):
+    """What the hosted app will do: no data/processed/, only the release.
+    Publish the real tables, serve them from a folder, and check the wildcard
+    and team-sync loaders give exactly what they give locally."""
+    import app_data
+    import fpl_sync
+    import wildcard
+    from publish import publish
+
+    out = tmp_path / "publish"
+    publish(PROCESSED, out, sha="test")
+    monkeypatch.setattr(app_data, "_download",
+                        lambda url: (out / url.rsplit("/", 1)[1]).read_bytes())
+    empty = tmp_path / "no_processed"
+
+    for got, want in zip(wildcard.load_inputs(empty), wildcard.load_inputs(PROCESSED)):
+        pd.testing.assert_frame_equal(got, want, check_dtype=False)
+    hosted, local = fpl_sync.load_tables(empty), fpl_sync.load_tables(PROCESSED)
+    for name in local:
+        pd.testing.assert_frame_equal(hosted[name], local[name], check_dtype=False)

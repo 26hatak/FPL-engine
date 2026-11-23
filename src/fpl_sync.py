@@ -72,6 +72,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from app_data import load_table
 from build_player_match import CURRENT_SEASON
 
 API = "https://fantasy.premierleague.com/api/"
@@ -447,13 +448,15 @@ def reconstruct_team(raw: dict, players: pd.DataFrame, teams: pd.DataFrame,
 # --------------------------------------------------------------------------- #
 
 def load_tables(processed: Path = PROCESSED) -> dict[str, pd.DataFrame]:
+    """The local tables reconstruct_team needs, via app_data.load_table: read
+    from data/processed/ on a laptop, downloaded from the data-latest release
+    when hosted (where data/processed/ doesn't exist). Only published tables
+    are used, so a hosted sync can't fail on a missing file."""
     return {
-        "players": pd.read_parquet(processed / "players.parquet"),
-        "teams": pd.read_parquet(processed / "teams.parquet"),
-        "prices": pd.read_parquet(processed / "players_daily.parquet",
-                                  columns=["season", "player_code", "snapshot_time", "now_cost"]),
-        "first_deadline_values": pd.read_parquet(processed / "player_gw.parquet",
-                                                 columns=["season", "player_code", "gw", "value"]),
+        "players": load_table("players", processed),
+        "teams": load_table("teams", processed),
+        "prices": load_table("prices", processed),                    # latest snapshot
+        "first_deadline_values": load_table("gw_values", processed),  # price per GW
     }
 
 

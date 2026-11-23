@@ -12,6 +12,9 @@ publish/ holds:
   prices                         the rows of the LATEST snapshot in players_daily
                                  (price, status, news, ownership right now);
                                  the full history isn't needed by the app
+  gw_values                      each player's price at each gameweek this season
+                                 (from player_gw): fpl_sync's purchase price for
+                                 players in a team's first squad
   xp_components                  only if data/processed/ has it (the Phase 1
                                  model will write it); skipped quietly if not
   manifest.json                  as_of, row counts and the git commit of the data,
@@ -24,6 +27,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from build_player_match import CURRENT_SEASON
+
 PROCESSED = Path("data/processed")
 PUBLISH = Path("publish")
 TABLES = ["xp", "fixtures", "teams", "players"]   # must exist
@@ -34,6 +39,18 @@ def latest_prices(players_daily: pd.DataFrame) -> pd.DataFrame:
     """The rows of the most recent snapshot: one row per player, as of now."""
     latest = players_daily["snapshot_time"].max()
     return players_daily[players_daily["snapshot_time"] == latest].reset_index(drop=True)
+
+
+def gw_values(player_gw: pd.DataFrame) -> pd.DataFrame:
+    """season, player_code, gw, value (tenths of £m) for the current season.
+
+    fpl_sync needs a player's price at a team's first deadline: players in the
+    first squad have no transfer record to read a purchase price from. Only
+    these 4 columns and this season, so the hosted app downloads ~10k rows
+    instead of the whole player_gw table."""
+    cur = player_gw[player_gw["season"] == CURRENT_SEASON]
+    return (cur[["season", "player_code", "gw", "value"]]
+            .dropna(subset=["value"]).reset_index(drop=True))
 
 
 def git_sha() -> str | None:
@@ -61,6 +78,8 @@ def publish(processed: Path = PROCESSED, out: Path = PUBLISH,
         if path.exists():
             tables[name] = pd.read_parquet(path)
     tables["prices"] = latest_prices(pd.read_parquet(processed / "players_daily.parquet"))
+    tables["gw_values"] = gw_values(pd.read_parquet(
+        processed / "player_gw.parquet", columns=["season", "player_code", "gw", "value"]))
 
     if out.exists():
         shutil.rmtree(out)
