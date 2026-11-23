@@ -166,3 +166,27 @@ def test_xp_covers_every_player_for_the_next_gameweeks():
     as_of = xp["as_of"].iloc[0]
     assert deadlines[first_gw] > as_of                            # predicts the NEXT deadline...
     assert first_gw == 1 or deadlines[first_gw - 1] <= as_of      # ...not one further on
+
+
+@needs_xp
+def test_wildcard_inputs_are_complete():
+    """Every buyable player has a price and 6 xp values, and each position has
+    enough players to fill a squad. A NaN would silently drop a player."""
+    from wildcard import SQUAD, load_inputs
+    players, xp_wide = load_inputs(PROCESSED)
+    assert players[["team_code", "position", "price"]].notna().all().all()
+    assert players["price"].between(35, 160).all()              # tenths of £m
+    assert xp_wide.notna().all().all() and list(xp_wide.index) == list(players.index)
+    for pos, n in SQUAD.items():
+        assert (players["position"] == pos).sum() >= n
+
+
+@needs_xp
+def test_wildcard_on_real_data_is_legal():
+    from wildcard import check_plan, load_inputs, solve_wildcard
+    players, xp_wide = load_inputs(PROCESSED)
+    try:
+        plan = solve_wildcard(players, xp_wide)
+    except NotImplementedError:
+        pytest.skip("solve_wildcard not written yet")
+    assert check_plan(plan, players, list(xp_wide.columns)) == []

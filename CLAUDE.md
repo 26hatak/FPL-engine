@@ -36,7 +36,9 @@ Phase 0 (data), target finish Oct 25, 2026:
 End-to-end v0, gate Nov 8, 2026 (all stages run):
 
 - [x] v0 xP: `src/predict_baseline.py` → `processed/xp.parquet` (last-5 points per match × fixtures × availability, next 6 GWs, rebuilt daily by `build_all.py`). Walk-forward reproduces the last-5 bar (DECISIONS.md 2026-11-05).
-- [ ] Wildcard MILP: `src/wildcard.py` (PuLP) reads `xp` + latest prices from `players_daily`; test that every squad is legal.
+- [ ] Wildcard MILP: `src/wildcard.py` (PuLP 3.3.2 + HiGHS) reads `xp` + latest prices from `players_daily`; test that every squad is legal. Done: `load_inputs`, `check_plan` (independent legality checker), `score_plan`, tests in `tests/test_wildcard.py` (solver tests skip until written). **Next: the user writes `solve_wildcard`** (hints in its docstring); review it, don't write it.
+
+Product (decided 2026-11-22): a public Streamlit app. Users enter an FPL team ID, the squad is imported read-only (never a password), the app suggests transfers and shows a per-component xP breakdown. Logic stays in `src/` as plain tested functions; `app/` only does layout. Full plan and revised timeline: `/Users/keitahata/.claude/plans/i-want-to-make-playful-nygaard.md` (copy into the plan doc).
 
 Phase 1 (after the gate):
 
@@ -55,6 +57,7 @@ fpl-engine/
 ├── src/build_player_gw.py           all of the above -> processed/player_gw (targets, f_*, snap_*)
 ├── src/build_all.py                 rebuilds every processed table in order
 ├── src/predict_baseline.py          v0 xP for the next 6 GWs -> processed/xp (last step of build_all)
+├── src/wildcard.py                  wildcard MILP: best 15 + XI + captain per GW from xp and prices
 ├── tests/                           pytest: synthetic tests (incl. leakage) + real-data checks
 ├── notebooks/                       exploration only
 ├── data/raw/                        raw data, gzipped (never edit)
@@ -65,6 +68,7 @@ fpl-engine/
 ├── data/processed/                  Parquet tables rebuilt from raw (git-ignored)
 ├── DATA.md                          field notes: keys, units, grain, leakage, gaps
 ├── DECISIONS.md                     what was tried, why, and the real numbers (newest first)
+├── INTERVIEW.md                     interview notes: pitch, numbers to memorize, likely questions (⭐ = know cold)
 ├── requirements.txt                 packages for .venv
 └── .gitignore                       .venv/, __pycache__/, .DS_Store, data/processed/
 ```
@@ -152,3 +156,4 @@ If behind, cut in this order: bonus model, chips, alternative suggestions, the a
 - Optimizer's curse = why quants shrink forecasts before portfolio optimization.
 - Transfer planner = rebalancing with transaction costs.
 - Record real numbers from ablations and backtests in `DECISIONS.md` as we go (what was tried, why, what happened).
+- Keep `INTERVIEW.md` current: when something is built, flip it from 🔜 to ✅ with its real numbers, and add new ⭐ talking points and likely questions.
