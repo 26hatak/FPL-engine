@@ -22,7 +22,10 @@ Notes for talking about this project in quant, ML engineering and data science i
 | Last-5 average baseline | MAE **1.079**, Spearman **0.705** | The floor |
 | v0 xP (walk-forward, 1 GW ahead) | MAE **1.071**, Spearman **0.705** | Reproduces the floor, so the code is right |
 | v1 decomposed xP, no ML (walk-forward) | MAE **1.014**, Spearman **0.720** | Beats last-5 on every metric; DECISIONS 2026-11-22 |
-| Spearman among players who played | v1 **0.307** vs FPL **0.558** | The remaining gap is minutes (who plays) |
+| Spearman among players who played | v1 **0.307** vs `fpl_xp` **0.558** | Exact minutes would only reach 0.484, so minutes isn't the whole gap; DECISIONS 2026-11-24 |
+| v1 vs FPL's point-in-time `ep_next` (2026-27 GW6–11) | Spearman **0.783 vs 0.754**, MAE **1.068 vs 1.185**, wins **6/6** GWs | The fair test: v1 already beats FPL; DECISIONS 2026-11-24 |
+| Minutes oracle (knows who plays, leaks on purpose) | Spearman **0.720 → 0.903** | The ceiling a perfect minutes model reaches; why it's built next |
+| Share of points spread | goals 30%, appearance 25%, CS 17%, bonus 14%, assists 11%, DefCon 2% | Where to spend effort = share × predictability |
 | Horizon decay, Spearman | **0.746** (1 GW ahead) → **0.639** (6 GWs ahead), about −14% | Justifies the discount δ ≈ 0.85–0.9 |
 | MAE on players who actually played | **2.23** vs 1.04 on all rows | Most rows are "predicted 0, scored 0" |
 | Treating unrecorded `fpl_xp` as NaN, not 0 | Pearson 0.51 → **0.73** (+0.22) | One data-cleaning decision, big effect |
@@ -164,7 +167,8 @@ Phase 2 plus time. Variables per gameweek: squad x_i,t, transfers in_i,t / out_i
   - DefCon is P(count ≥ threshold), not rate × points: it's a step.
   - Shrinkage strength comes from split-half reliability, not tuning. A defender's xG is mostly noise (pulled in hard); DefCon is a stable trait (barely pulled).
 - **Leakage guard:** every estimated constant (team ratings, league average, position priors, bonus coefficients) is accumulated per gameweek and shifted by one, like the `f_*` features. A poison test proves nothing at or before a gameweek changes when its outcomes do.
-- **The honest gap:** among players who actually played, FPL ranks at 0.558 and v1 at 0.307. The events are calibrated, so the error is *who plays*, which is the minutes model below.
+- **The honest gap, and a correction I made myself** ⭐: among players who actually played, `fpl_xp` ranks at 0.558 and v1 at 0.307. I first blamed minutes. Then I measured it with an oracle (v1 given the real minutes, leaking on purpose): exact minutes only reach 0.484. So I checked whether the bar was fair. On this season, against FPL's `ep_next` taken *before* each deadline, v1 wins 0.783 vs 0.754 in 6/6 gameweeks. The past-season `fpl_xp` probably wasn't always saved before the deadline. **Lesson: check your benchmark is point-in-time too, not just your features.**
+- **Where to spend effort:** share of points spread × how predictable it is. Goals are 30% of the spread (48% for forwards) but mostly luck; clean sheets are ~40% for GK/DEF and come from team strength; knowing who plays lifts Spearman 0.720 → 0.903. So: minutes model, then the team model, then goals as team × share.
 
 **Still planned (🔜):**
 
@@ -181,7 +185,7 @@ E[pts] = 2·p60 + (p_play − p60) + E[mins/90]·(G_pos·λ_g + 3·λ_a) + p60·
 
 ## Weaknesses to volunteer (they make you sound senior)
 
-- v0 xP is only as good as the floor baseline; FPL's own prediction is still much better (0.855 vs 1.071 MAE).
+- v1 beats FPL's point-in-time `ep_next`, but only on 6 gameweeks of one season, and `ep_next` is a simple form-based number. On past seasons `fpl_xp` still looks better (0.854 vs 1.014 MAE), probably because of when it was captured, which I haven't proven yet.
 - No uncertainty (standard deviation) on xp yet, which the optimizer's-curse fix needs.
 - Availability flags only exist from 2026-10-07, so the injury signal can't be backtested.
 - The backtest's fixture schedule isn't point-in-time for past seasons.

@@ -2,6 +2,66 @@
 
 What was tried, why, and what happened, with real numbers. Newest first.
 
+## 2026-11-24: where the ranking skill lives, and a fair FPL bar
+
+**Question:** to raise Spearman, which component should get the effort? And is the past-season FPL bar (`fpl_xp`, 0.759) a fair target?
+
+**How:** `python src/diagnose_spearman.py`, three measurements.
+
+**1. Spread by component.** Within each (season, GW, position), the share of the variance of actual points that comes from each component, cov(component, total) / var(total). Bar rows (32,068), in %:
+
+| Component | All | Played | GK | DEF | MID | FWD |
+| --- | --- | --- | --- | --- | --- | --- |
+| Appearance | 25.0 | 6.9 | 32.7 | 25.6 | 24.6 | 21.0 |
+| Goals | 29.7 | 36.8 | 0 | 14.7 | 38.8 | 48.2 |
+| Assists | 11.4 | 12.7 | 1.5 | 7.2 | 16.3 | 9.9 |
+| Clean sheet | 17.3 | 18.5 | 40.4 | 38.2 | 4.8 | 0 |
+| Saves | 1.0 | 0.7 | 13.4 | – | – | – |
+| DefCon | 1.7 | 1.6 | – | 3.2 | 1.6 | – |
+| Bonus | 14.2 | 17.7 | 10.9 | 10.9 | 14.7 | 21.5 |
+| Conceded, cards | ≈0 | | | | | |
+
+A big share isn't the same as predictable: goals have the biggest share but are mostly luck. Effort should go where share × predictability is largest.
+
+**2. Minutes oracle.** v1 re-run with its minutes features replaced by what actually happened in each match. This leaks on purpose: it's the ceiling a perfect minutes model could reach, not a model.
+
+| v1 variant | Spearman all | Spearman played | MAE |
+| --- | --- | --- | --- |
+| As built | 0.720 | 0.307 | 1.014 |
+| + knows **whether** he plays | **0.903** | 0.304 | 0.825 |
+| + knows his **exact** minutes | 0.924 | 0.484 | 0.738 |
+| FPL `fpl_xp` (capture time unknown) | 0.759 | 0.558 | 0.854 |
+
+**3. Point-in-time FPL.** 2026-27 GW6–11 (4,013 rows). FPL's `ep_next` comes from the snapshot strictly before each deadline, the same information v1 has:
+
+| Model | Spearman all | Spearman played | MAE |
+| --- | --- | --- | --- |
+| last-5 | 0.727 | 0.322 | 1.203 |
+| **v1** | **0.783** | **0.330** | **1.068** |
+| `ep_next` (point-in-time) | 0.754 | 0.272 | 1.185 |
+
+v1 − `ep_next` per GW: +0.015, +0.059, +0.035, +0.013, +0.023, +0.028. That's 6/6 positive, mean +0.029, bootstrap over GWs 95% CI [+0.018, +0.042].
+
+**What this tells us:**
+- **Correction to 2026-11-22.** There I wrote "the gap to FPL is minutes". That's only half right:
+  - Over all rows, minutes is nearly everything. Knowing who plays takes v1 from 0.720 to 0.903, far past FPL.
+  - Among players who played, even exact minutes reach only 0.484, still below `fpl_xp`'s 0.558. The rest is event rates (goals, assists, bonus), or FPL's number knowing more than it should.
+- **On the fair test, v1 already beats FPL.** It wins on Spearman, MAE and played-row Spearman, in every gameweek. So the past-season `fpl_xp` bar is probably not point-in-time.
+  - Hypothesis, not proven: vaastav may have saved some gameweeks' xP after team news or lineups.
+  - Test it (open item): compare `fpl_xp` with our own `snap_ep_next` on any gameweek both cover, or check how `fpl_xp` treats players who didn't play.
+- **Order of work:**
+  1. **Minutes model.** Biggest share × most predictable; it's the gate for every other component.
+  2. **Clean sheets.** Team ratings decide GK/DEF.
+  3. **Goals.** Team × share, plus a penalty-taker flag.
+  4. **Bonus.** Refit once 2026-27 has enough matches.
+
+  DefCon, saves, conceded and cards are too small to matter for ranking.
+
+**Caveats:**
+- The fair test is one season and 6 GWs. The bootstrap resamples only 6 gameweeks, so its interval is optimistic.
+- The oracle keeps each player's usual 60+ and minutes rate when he plays (variant "whether"), so it slightly understates what perfect team news gives.
+- `ep_next` is FPL's simple form-based number, not a strong model. Beating it is necessary, not impressive on its own.
+
 ## 2026-11-23: dropped vaastav's duplicate rows
 
 **What:** vaastav's 2025-26 `merged_gw` repeats 10 rows exactly (2 players), so `player_gw` counted those matches twice. `build_player_match` now drops exact copies, and a real-data test checks one row per player per match.
@@ -68,7 +128,7 @@ Shrinkage sensitivity: no shrinkage 1.014 / 0.718, one m = 6 1.015 / 0.720, per-
 
 **What this tells us:**
 - Decomposing beats last-5 on every metric, with no ML, and the pieces add up to the right total. The structure works.
-- **The gap to FPL is minutes.** Among players who played, FPL ranks at 0.558 and we rank at 0.306. Each event component is calibrated, so the error is who plays. That's the minutes model, next on the plan as the most important piece. Past seasons have no availability flags, so part of FPL's edge is team news we can't replay.
+- **The gap to FPL is minutes.** Among players who played, FPL ranks at 0.558 and we rank at 0.306. Each event component is calibrated, so the error is who plays. That's the minutes model, next on the plan as the most important piece. Past seasons have no availability flags, so part of FPL's edge is team news we can't replay. *(Partly corrected 2026-11-24: exact minutes only reach 0.484 among players who played, and v1 beats FPL's point-in-time `ep_next`.)*
 - Assists are 25% under-predicted: FPL awards assists more generously than Opta xA counts them (rebounds, deflections, penalties won). Fix: scale xA to FPL assists per position.
 - Shrinkage barely moves averaged metrics, because most rows are decided by minutes. Its job is the top of the table: unshrunk, the best xG/90 this week is Mundle (1 minute played, 15.3); shrunk, it's Barry/Haaland (0.57/0.54), and Hinshelwood (157 min, 1.44) falls to 0.55. The optimizer reads the top of the table, so shrinkage is the guard against the optimizer's curse.
 
