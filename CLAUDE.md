@@ -48,7 +48,8 @@ Phase 1 (after the gate):
 
 - [x] `player_fixture` (one row per player per fixture, played + future, GW-frozen `f_*`/`snap_*`, opponent, home, rest days): `src/build_player_fixture.py`.
 - [x] v1 decomposed xP, no ML: `scoring.yaml` + `src/predict_components.py` → `xp_components` (9 components that sum to xp, plus drivers, for the app's breakdown). Walk-forward Spearman 0.720 vs last-5 0.705 and FPL 0.759 (DECISIONS.md 2026-11-22). `xp` (v0) is still the optimizer's input; switch after `solve_wildcard` is written and compare squads.
-- [ ] Minutes model (the gap to FPL is who plays: 0.307 vs 0.558 Spearman among players who played). Don't use `n_appear` / `n_60` from `player_gw` as features: they're same-GW outcomes.
+- [x] Diagnostics (`src/diagnose_spearman.py`, DECISIONS 2026-11-24): v1 beats FPL's point-in-time `ep_next` on 2026-27 (0.783 vs 0.754, 6/6 GWs); knowing who plays would lift Spearman 0.720 → 0.903. Past-season `fpl_xp` is probably not point-in-time (open: test it).
+- [ ] Minutes model, next (two logistic regressions: P(start), P(60+ | start); then LightGBM). Don't use `n_appear` / `n_60` from `player_gw` as features: they're same-GW outcomes.
 - [ ] Scale xA to FPL assists (assists under-predicted 25%); refit bonus on 2026/27 only once it has enough matches (BPS reworked).
 
 ## Repo layout
@@ -67,6 +68,7 @@ fpl-engine/
 ├── src/build_player_fixture.py      player_gw + fixtures -> processed/player_fixture (played + future)
 ├── src/predict_components.py        v1 decomposed xP -> processed/xp_components (last step of build_all)
 ├── src/evaluate_components.py       walk-forward evaluation of v1 vs last-5 and fpl_xp
+├── src/diagnose_spearman.py         spread by component, minutes oracle, v1 vs point-in-time ep_next
 ├── src/wildcard.py                  wildcard MILP: best 15 + XI + captain per GW from xp and prices
 ├── src/fpl_sync.py                  read-only team import by FPL team ID (squad, selling prices, FTs)
 ├── src/publish.py                   app tables -> publish/ -> data-latest release (daily job)
